@@ -1,0 +1,53 @@
+I’ve been working on Schedule.builders for a couple months now. It’s a free-to-use lead generation website for clients to connect to contractors for home improvement projects. I implemented automatic subscriptions and notifications for different Cognito user groups as well as utilizing the GraphQL + Appsync + DynamoDB combo I’ve grown to love. Why not add another AWS tool right?
+
+Bedrock is a fully managed service that offers multiple models via a single API. All you need to do is log into your AWS account, navigate to Bedrock, and request access from the LLM’s that you want.
+
+I decided to use the AI21 Jurassic-2 Ultra model because it is inexpensive while generating a response quickly. Just know that every 1000 input/output tokens (~4000 chars) will run you just under 2 cents. You can find Bedrock pricing here.
+
+To implement a chatbot, all you need is this lambda:
+
+const PROMPT =
+  'In this section, you can set the stage to whatever you want to ask.
+   If you want the model to answer questions in a certain way, style,
+   language, etc., you can implement params in the handler and use them here.';
+
+ const input = {          
+// I only have maxTokens, temperature, and topP set.
+// maxTokens = controls the max amount of tokens returned
+// temperature = controls the randomness on a scale of 0 - 1
+// topP = model considers the probability distribution on a scale of 0 - 1
+
+  body: `{"prompt":"${PROMPT}","maxTokens":200,"temperature":0,"topP":1,"stopSequences":[],"countPenalty":{"scale":0},"presencePenalty":{"scale":0},"frequencyPenalty":{"scale":0}}`,
+  contentType: 'application/json',
+  accept: 'application/json',
+  modelId: 'ai21.j2-ultra-v1',
+ };
+
+// With these settings, I want the response to be as accurate and concise as 
+// possible with predictable and focused outputs.
+
+ console.log(input);
+
+// InvokeModelCommand is a Bedrock API that consists of the input params to 
+// send to the model.
+ const command = new InvokeModelCommand(input);
+
+ let data, completions;
+
+ try {
+// Send the command to the model
+  data = await client.send(command);
+
+// Decodes binary data of the first completion into a string and parses into an object
+  completions = JSON.parse(new TextDecoder().decode(data.body)).completions;
+
+// Extracts the response from the first completion
+  const result = completions[0].data.text;
+  console.log(result);
+        return result;
+ } catch (error) {
+  console.error(error);
+ }
+Now, all you have to do is connect the lambda to your GraphQL API via Appsync, and implement the response into your frontend code.
+
+Just a heads up, I would be receiving console errors because Lambdas have a timeout error after 3 seconds by default. Since the response sometimes took a bit longer to generate, I bumped it up to 5 seconds and never encountered the problem again!
